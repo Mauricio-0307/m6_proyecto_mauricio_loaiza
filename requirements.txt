@@ -1,0 +1,10 @@
+# Framework web
+Flask==3.1.0
+# Driver PostgreSQL
+psycopg2-binary==2.9.10
+# Carga de variables desde .env
+python-dotenv==1.1.0
+# Servidor WSGI para producción
+gunicorn==23.0.0
+# Framework de pruebas
+pytest==8.3.5

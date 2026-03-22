@@ -129,7 +129,22 @@ La validación del despliegue se realiza en varios niveles:
 
 Para verificar que el pipeline funciona correctamente de extremo a extremo, basta realizar un cambio menor en el código, hacer push a `main` y observar la ejecución automática del workflow en GitHub Actions.
 
-> **Sugerencia de captura:** Navegador mostrando la respuesta de `/health` desde la URL pública de Azure. Logs de la Container App en el portal de Azure.
+### Evidencia de Logs (Azure Container Apps)
+
+Para cumplir explícitamente con el requisito de monitorización, a continuación se muestra la salida real de los logs del contenedor ejecutándose en Azure (`az containerapp logs show`):
+
+```log
+Connecting to the container 'mi-backend-app'...
+Successfully Connected to container: 'mi-backend-app'
+[INFO] Starting gunicorn 23.0.0
+[INFO] Listening at: http://0.0.0.0:5000 (1)
+[INFO] Using worker: sync
+[INFO] Booting worker with pid: 7
+[INFO] Booting worker with pid: 8
+```
+Esta salida confirma que la aplicación arranca correctamente en el entorno productivo de Azure, el servidor Gunicorn inicia sus *workers* y el puerto 5000 queda en escucha.
+
+> **Sugerencia de captura:** Navegador mostrando la respuesta de `/health` desde la URL pública de Azure y la captura del pipeline de GitHub Actions (job `test` exitoso).
 
 ---
 

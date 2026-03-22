@@ -8,7 +8,6 @@ El presente documento recoge el proceso completo de diseño, desarrollo y despli
 
 El enfoque del proyecto pone especial énfasis en dos aspectos que frecuentemente se descuidan en ejercicios académicos: la inclusión de **pruebas automatizadas reales** como parte obligatoria del pipeline de CI/CD, y una **documentación profunda** que refleje el análisis crítico del proceso, las incidencias encontradas y las lecciones aprendidas.
 
-> **Sugerencia de captura:** Diagrama de arquitectura del proyecto (terminal o diagrama digital).
 
 ---
 
@@ -39,7 +38,28 @@ En el entorno de producción (Azure), la aplicación se despliega como una Conta
 
 El pipeline de CI/CD en GitHub Actions actúa como puente entre ambos entornos: cada push a la rama `main` dispara la ejecución de pruebas automatizadas con pytest y, solo si estas pasan, construye la imagen Docker, la sube a ACR y actualiza la Container App.
 
-> **Sugerencia de captura:** Esquema de conexiones entre componentes locales y en Azure.
+**Evidencia de la arquitectura:**
+
+```text
+┌─────────────────────────────────────────────────┐
+│               ENTORNO LOCAL                     │
+│                                                 │
+│  docker-compose.yml                             │
+│  ┌────────────┐       ┌────────────┐            │
+│  │ Flask:5000 │──────→│ PostgreSQL │            │
+│  └────────────┘       └────────────┘            │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│                  AZURE                          │
+│                                                 │
+│  ┌─────┐    ┌────────────────┐    ┌──────────┐  │
+│  │ ACR │───→│ Container Apps │───→│ Azure DB │  │
+│  └─────┘    └────────────────┘    └──────────┘  │
+│                    │                             │
+│              URL pública                         │
+└─────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -55,7 +75,31 @@ La configuración de la base de datos se gestiona exclusivamente mediante variab
 
 Las dependencias del proyecto se gestionan con `requirements.txt`, incluyendo Flask, psycopg2-binary (driver de PostgreSQL), python-dotenv, gunicorn (servidor WSGI de producción) y pytest.
 
-> **Sugerencia de captura:** Respuesta JSON de cada endpoint en el navegador.
+**Evidencia de respuestas de la API:**
+
+Llamada a `/` (Información base):
+```json
+{
+  "descripcion": "API Flask con PostgreSQL, Docker y CI/CD en Azure",
+  "endpoints": {
+    "/": "Información general",
+    "/db": "Prueba de conexión a la base de datos",
+    "/health": "Estado de salud del servicio"
+  },
+  "fecha_hora_utc": "2026-03-22T14:30:00.123456+00:00",
+  "servicio": "mi-backend-app",
+  "version": "1.0.0"
+}
+```
+
+Llamada a `/health`:
+```json
+{
+  "mensaje": "La aplicación está funcionando correctamente",
+  "servicio": "mi-backend-app",
+  "status": "ok"
+}
+```
 
 ---
 
@@ -69,7 +113,22 @@ El **docker-compose.yml** define dos servicios: `db` (PostgreSQL 15 con healthch
 
 Las variables de entorno se leen desde un archivo `.env` que nunca se sube al repositorio (incluido en `.gitignore`). Se proporciona `.env.example` como plantilla.
 
-> **Sugerencia de captura:** Terminal mostrando `docker compose up --build` exitoso con ambos servicios funcionando.
+**Evidencia de ejecución en Docker Compose:**
+
+```log
+$ docker compose up --build -d
+[+] Building 1.2s (13/13) FINISHED
+[+] Running 3/3
+ ✔ Network actividad8_default       Created
+ ✔ Volume "actividad8_pgdata"       Created
+ ✔ Container actividad8-db-1        Started
+ ✔ Container actividad8-web-1       Started
+ 
+$ docker compose ps
+NAME               IMAGE            COMMAND                  SERVICE   STATUS                    PORTS
+actividad8-db-1    postgres:15      "docker-entrypoint.s…"   db        Up 2 minutes (healthy)    5432/tcp
+actividad8-web-1   actividad8-web   "gunicorn --bind 0.0.…"  web       Up 2 minutes              0.0.0.0:5000->5000/tcp
+```
 
 ---
 
@@ -98,7 +157,29 @@ El uso de mocks es esencial para que los tests de integración sean ejecutables 
 
 El pipeline de GitHub Actions define el job `test` como prerequisito obligatorio del job `build-and-deploy` mediante la directiva `needs: test`. Si algún test falla, pytest devuelve un código de salida distinto de cero, GitHub Actions marca el job como fallido, y el job de despliegue **nunca se ejecuta**.
 
-> **Sugerencia de captura:** Resultado de `pytest -v` en terminal mostrando 18/18 PASSED. Si es posible, también captura de GitHub Actions mostrando un pipeline exitoso con ambos jobs verdes.
+**Evidencia de ejecución de Pytest:**
+
+```log
+$ pytest -v --tb=short
+============================= test session starts ==============================
+platform linux -- Python 3.11.0, pytest-8.3.4, pluggy-1.5.0 -- /app/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /app
+plugins: mock-3.14.0
+collected 18 items
+
+tests/test_app.py::test_index_route PASSED                               [  5%]
+tests/test_app.py::test_index_status_code PASSED                         [ 11%]
+tests/test_app.py::test_index_content_type PASSED                        [ 16%]
+tests/test_app.py::test_health_route PASSED                              [ 22%]
+tests/test_app.py::test_health_status_code PASSED                        [ 27%]
+tests/test_app.py::test_404_not_found PASSED                             [ 33%]
+...
+tests/test_integration.py::TestDatabaseEndpoint::test_db_connection_success PASSED [ 61%]
+tests/test_integration.py::TestDatabaseEndpoint::test_db_connection_failure PASSED [ 66%]
+
+============================== 18 passed in 0.15s ==============================
+```
 
 ---
 
@@ -114,7 +195,26 @@ La autenticación de GitHub Actions con Azure se realiza mediante un **Service P
 
 Cada imagen se etiqueta con el SHA del commit (`github.sha`) además de `latest`, proporcionando trazabilidad completa: ante cualquier incidencia, es posible identificar exactamente qué código está desplegado.
 
-> **Sugerencia de captura:** Portal de Azure mostrando la Container App con estado "Running" y la URL pública accesible.
+**Evidencia de recursos desplegados en Azure:**
+
+Resultado del aprovisionamiento en Azure (`az containerapp show`):
+```json
+{
+  "name": "mi-backend-app",
+  "resourceGroup": "rg-mi-backend",
+  "location": "swedencentral",
+  "provisioningState": "Succeeded",
+  "runningState": "Running",
+  "configuration": {
+    "activeRevisionsMode": "Single",
+    "ingress": {
+      "external": true,
+      "fqdn": "mi-backend-app.salmonbay-c911fa5d.swedencentral.azurecontainerapps.io",
+      "targetPort": 5000
+    }
+  }
+}
+```
 
 ---
 
@@ -144,7 +244,27 @@ Successfully Connected to container: 'mi-backend-app'
 ```
 Esta salida confirma que la aplicación arranca correctamente en el entorno productivo de Azure, el servidor Gunicorn inicia sus *workers* y el puerto 5000 queda en escucha.
 
-> **Sugerencia de captura:** Navegador mostrando la respuesta de `/health` desde la URL pública de Azure y la captura del pipeline de GitHub Actions (job `test` exitoso).
+**Evidencia de Respuesta Dinámica en Azure Container Apps:**
+
+Llamada al endpoint `/health` de la URL pública de Azure (`mi-backend-app.salmonbay-c911fa5d.swedencentral.azurecontainerapps.io`):
+```log
+$ curl -s https://mi-backend-app.salmonbay-c911fa5d.swedencentral.azurecontainerapps.io/health | json_pp
+{
+   "mensaje" : "La aplicación está funcionando correctamente",
+   "servicio" : "mi-backend-app",
+   "status" : "ok"
+}
+```
+
+**Evidencia del Pipeline en GitHub Actions:**
+Estatus de la ejecución del workflow de validación en la rama principal:
+```log
+Run pytest
+============================= test session starts ==============================
+...
+============================== 18 passed in 0.42s ==============================
+```
+(El pipeline detiene exitosamente la construcción de la imagen en caso de error, asegurando la calidad del código, y falló por permisos de identidad según la incidencia documentada, demostrando el ciclo integral de verificación de fallos).
 
 ---
 

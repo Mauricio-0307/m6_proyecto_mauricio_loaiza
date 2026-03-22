@@ -155,6 +155,14 @@ En la versión anterior del ejercicio, el pipeline solo automatizaba build y pus
 
 Si PostgreSQL ya estaba instalado en la máquina local, el puerto 5432 estaba ocupado. Se resolvió documentando la solución (detener el servicio local o cambiar el mapeo de puertos).
 
+### Incidencia 6: Restricción de regiones en Azure for Students
+
+Al crear el Azure Container Registry, el comando `az acr create --location westeurope` fallaba con el error `RequestDisallowedByAzure`. Tras investigar con `az policy assignment list`, se descubrió que la suscripción Azure for Students (UNIR) tiene una Azure Policy que restringe el despliegue a cinco regiones: `swedencentral`, `switzerlandnorth`, `polandcentral`, `italynorth` y `germanywestcentral`. Se recrearon todos los recursos en `swedencentral`, resolviendo el problema. Esta incidencia demuestra la importancia de verificar las políticas de gobernanza antes de planificar la infraestructura.
+
+### Incidencia 7: Imposibilidad de crear Service Principal
+
+Para que GitHub Actions pueda autenticarse contra Azure, se necesita un Service Principal (credenciales de aplicación). Al ejecutar `az ad sp create-for-rbac`, Azure devolvió `Insufficient privileges to complete the operation`. La suscripción educativa no otorga permisos de Azure Active Directory a los estudiantes. Como consecuencia, el job `build-and-deploy` del pipeline no puede ejecutarse de forma automatizada. Sin embargo, el job `test` (pytest) funciona correctamente, validando la parte de integración continua. El despliegue se realizó manualmente mediante `az acr login`, `docker push` y `az containerapp create`. Esta limitación es representativa de situaciones reales en entornos corporativos donde las políticas de seguridad restringen la creación de identidades.
+
 ---
 
 ## 10. Lecciones aprendidas
@@ -170,6 +178,8 @@ Si PostgreSQL ya estaba instalado en la máquina local, el puerto 5432 estaba oc
 5. **La documentación de incidencias reales produce mejor documentación.** Documentar los problemas tal como ocurren genera material mucho más útil que un README genérico escrito post-facto.
 
 6. **El versionado de imágenes con el SHA del commit aporta trazabilidad total.** Ante cualquier incidencia en producción, se puede saber exactamente qué código está desplegado y revertir de forma inmediata.
+
+7. **Las suscripciones educativas tienen restricciones de gobernanza.** Las Azure Policies del tenant universitario limitan regiones y permisos. Esto obliga a investigar las restricciones antes de diseñar la infraestructura y a plantear alternativas cuando el flujo ideal no es viable. En entornos corporativos existen limitaciones similares, por lo que esta experiencia es directamente transferible al mundo profesional.
 
 ---
 

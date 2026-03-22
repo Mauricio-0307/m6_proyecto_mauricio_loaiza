@@ -68,8 +68,8 @@ En local se usa PostgreSQL en contenedor. En producción se recomienda **Azure D
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/<tu-usuario>/<tu-repo>.git
-cd <tu-repo>
+git clone https://github.com/Mauricio-0307/m6_proyecto_mauricio_loaiza.git
+cd m6_proyecto_mauricio_loaiza
 
 # Crear entorno virtual (opcional pero recomendado)
 python -m venv venv
@@ -146,11 +146,13 @@ El proyecto incluye **18 pruebas** organizadas en dos archivos:
 
 ### 1. Crear recursos
 
+> **Nota:** La región utilizada fue `swedencentral` ya que la suscripción Azure for Students (UNIR) restringe las regiones disponibles mediante Azure Policy. Las regiones permitidas son: `swedencentral`, `switzerlandnorth`, `polandcentral`, `italynorth` y `germanywestcentral`.
+
 ```bash
 az login
-az group create --name rg-mi-backend --location westeurope
-az acr create --resource-group rg-mi-backend --name acrmibackenddemo --sku Basic --admin-enabled true
-az containerapp env create --name cae-mi-backend --resource-group rg-mi-backend --location westeurope
+az group create --name rg-mi-backend --location swedencentral
+az acr create --resource-group rg-mi-backend --name acrmibackenddemo --sku Basic --admin-enabled true --location swedencentral
+az containerapp env create --name cae-mi-backend --resource-group rg-mi-backend --location swedencentral
 ```
 
 ### 2. Subida manual inicial
@@ -267,6 +269,24 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 **Solución:** Detener el servicio local (`net stop postgresql-x64-15`) o cambiar el puerto mapeado en `docker-compose.yml` a `"5433:5432"`.
 
+### 6. Restricción de regiones en Azure for Students
+
+**Problema:** Al intentar crear el Azure Container Registry con `--location westeurope` o `--location eastus`, Azure devolvía el error `RequestDisallowedByAzure` indicando que la región no estaba permitida.
+
+**Causa:** La suscripción Azure for Students de UNIR tiene una Azure Policy (`Allowed resource deployment regions`) que restringe el despliegue a solo cinco regiones europeas: `swedencentral`, `switzerlandnorth`, `polandcentral`, `italynorth` y `germanywestcentral`.
+
+**Solución:** Se investigó la política con `az policy assignment list` para identificar las regiones permitidas, y se recrearon todos los recursos en `swedencentral`.
+
+### 7. Imposibilidad de crear Service Principal para GitHub Actions
+
+**Problema:** Al ejecutar `az ad sp create-for-rbac` para crear las credenciales que GitHub Actions necesita (`AZURE_CREDENTIALS`), Azure devolvía `Insufficient privileges to complete the operation`.
+
+**Causa:** La suscripción educativa de UNIR no otorga permisos de directorio (Azure Active Directory) a los estudiantes, impidiendo registrar aplicaciones o crear Service Principals.
+
+**Impacto:** El job `build-and-deploy` del pipeline CI/CD no puede autenticarse contra Azure. Sin embargo, el job `test` (pytest) funciona correctamente, demostrando la parte de integración continua.
+
+**Solución parcial:** El despliegue se realizó manualmente con `az acr login` + `docker push` + `az containerapp create`. La parte de CI (pruebas automatizadas) queda plenamente operativa en el pipeline. Para una solución completa, sería necesario que el administrador del tenant de Azure AD otorgue permisos para crear Service Principals, o se utilice una identidad gestionada (Managed Identity).
+
 ## Soluciones aplicadas
 
 | Problema | Solución | Patrón DevOps |
@@ -276,6 +296,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 | Código sin validar llega a producción | Job `test` con `needs` en el pipeline | Shift-left testing |
 | Credenciales en el código | Variables de entorno + `.env` + GitHub Secrets | Secret management |
 | Imágenes sin trazabilidad | Tag con `github.sha` además de `latest` | Immutable artifacts |
+| Regiones Azure restringidas | Consultar Azure Policy y usar región permitida | Infrastructure as Code |
+| Service Principal bloqueado | Despliegue manual + CI con pytest operativo | Graceful degradation |
 
 ## Lecciones aprendidas
 
@@ -298,7 +320,10 @@ Tener `test` y `build-and-deploy` como jobs separados (en vez de steps en un sol
 Usar variables de entorno, `.gitignore` y GitHub Secrets desde el principio es mucho más fácil que refactorizar un proyecto que tiene contraseñas hardcodeadas. El enfoque "security by design" es una buena práctica fundamental en DevOps.
 
 ### 6. La documentación profunda es una inversión
-Documenter incidencias y lecciones aprendidas durante el desarrollo (no después) produce documentación mucho más útil y realista. Los READMEs genéricos no ayudan a resolver problemas reales.
+Documentar incidencias y lecciones aprendidas durante el desarrollo (no después) produce documentación mucho más útil y realista. Los READMEs genéricos no ayudan a resolver problemas reales.
+
+### 7. Las suscripciones educativas tienen limitaciones reales
+Las suscripciones Azure for Students están restringidas por Azure Policies del tenant universitario (regiones limitadas, sin permisos para crear Service Principals). Esto afecta directamente al diseño del pipeline CI/CD y obliga a plantear alternativas (despliegue manual, identidades gestionadas). Es una lección valiosa: en entornos corporativos también existen restricciones similares por políticas de gobernanza.
 
 ## Mejoras futuras
 
@@ -312,6 +337,11 @@ Documenter incidencias y lecciones aprendidas durante el desarrollo (no después
 - **Migraciones de BD**: usar `Alembic` o `Flask-Migrate` para gestionar cambios de esquema
 - **Análisis de vulnerabilidades**: añadir `trivy` o `Snyk` al pipeline para escanear la imagen Docker
 
+## URL de la aplicación desplegada
+
+- **Aplicación en Azure**: https://mi-backend-app.salmonbay-c911fa5d.swedencentral.azurecontainerapps.io/
+- **Repositorio GitHub**: https://github.com/Mauricio-0307/m6_proyecto_mauricio_loaiza
+
 ## Autor
 
-Nombre del alumno / datos del estudiante según corresponda.
+Mauricio Loaiza — Curso de IA y Programación (UNIR)
